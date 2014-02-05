@@ -1,0 +1,85 @@
+package main
+
+import (
+	"mqtt/mqttgo/mqtt"
+	"flag"
+	"fmt"
+	"os"
+	//"strings"
+	log "mqtt/seelog"
+)
+
+var (
+	g_debug    = flag.Bool("d", false, "enable debugging log")
+	g_port     = flag.Int("p", 1883, "port of the broker to listen")
+	g_sql_user = flag.String("--sql-user","root",     "the user of sql server")
+	g_sql_pwd  = flag.String("--sql-pwd", "root",     "the password of sql server")
+	g_sql_host = flag.String("--sql-host","127.0.0.1","the host of sql server")
+	g_sql_port = flag.String("--sql-port","3306",     "the port of sql server")
+)
+
+func setup_logging() {
+	level := "debug"
+	config := fmt.Sprintf(`
+			<seelog type="sync" minlevel="%s">
+				<outputs formatid="main">
+					<console/>
+				</outputs>
+				<formats>
+					<format id="main" format="%%Date %%Time [%%LEVEL] %%File|%%FuncShort|%%Line: %%Msg%%n"/>
+				</formats>
+			</seelog>`, level)
+
+	logger, err := log.LoggerFromConfigAsBytes([]byte(config))
+
+	if err != nil {
+		fmt.Println("Failed to config logging:", err)
+		os.Exit(1)
+	}
+
+	log.ReplaceLogger(logger)
+
+	log.Info("Logging config is successful")
+}
+func setup_sql() {
+
+	login := new (mqtt.SqlLogin)
+	login.Sql_user = *g_sql_user
+	login.Sql_pwd  = *g_sql_pwd
+	login.Sql_host = *g_sql_host
+	login.Sql_port = *g_sql_port
+	
+	mqtt.G_sql_client = mqtt.InitSqlDB(login)
+}
+func main() {
+	setup_logging()
+	setup_sql()
+	
+	
+	isOnline := mqtt.G_sql_client.IsDeviceOnline("com/111111")
+	log.Debug("isOnline: ", isOnline)
+	
+	isOnline  = mqtt.G_sql_client.IsDeviceOnline("com.zte.zpushtest/1234567890")
+	log.Debug("isOnline: ", isOnline)
+	
+	mqtt.G_sql_client.UpdateDeviceOffline("111111")	
+	isOnline = mqtt.G_sql_client.IsDeviceOnline("111111")
+	log.Debug("isOnline: ", isOnline)
+
+	topics := mqtt.G_sql_client.FetchDeviceSubTopics("com")
+	log.Debug("topics: ", topics)
+	mqtt.G_sql_client.UpdateDeviceSubTopics("111111","com/test")
+	topics = mqtt.G_sql_client.FetchDeviceSubTopics("com")
+	log.Debug("topics: ", topics)
+
+	devList := mqtt.G_sql_client.FetchOnlineDeviceList("com/zc")
+	log.Debug("devList: ", devList)
+
+	mqtt.G_sql_client.UpdateDeviceOnline("111111","127.0.0.1")
+	isOnline = mqtt.G_sql_client.IsDeviceOnline("com/111111")
+	log.Debug("isOnline: ", isOnline)
+	//str := strings.Split("192.168.1.113:8080",":")[0]
+	//log.Debug("str: ", str)
+	//mqtt.G_sql_client.UpdateDeviceOnline("5555","192.168.1.113")	
+
+}
